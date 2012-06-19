@@ -5,7 +5,7 @@ import os
 
 class LCMT:
 	"""Light Contribution Management Tool
-	Version: 3.2.0
+	Version: 3.2.1
 	Author: Nestor Prado
 	more@nestorprado.com
 	SCAD Spring 2012"""
@@ -62,7 +62,12 @@ class LCMT:
 
 	def isRenderEngineInstalled(self,renderEngineName):
         
-        #query all the types and look for Vray Types, and Renderman Types
+        #bug fix: 06-20-2012: if mentalRay plugin not installed maya still has nodes called mentalraytexture
+		#this prevents LCMT from not not working when the mentalray pluguin isn't installed by default
+		if renderEngineName == 'mentalray' or renderEngineName == 'mentalRay':
+			renderEngineName =  self.MentalRayLightTypes[-1]
+			
+		#query all the types and look for Vray Types, and Renderman Types
 		AllTypes = cmds.allNodeTypes()
 		regex = '\w*'+renderEngineName+'\w*'    
 		to_find = re.compile(regex,re.IGNORECASE)
@@ -345,7 +350,7 @@ class LCMT:
 		windowName = 'LCMTUIWindow'
 		if cmds.window(windowName, exists=True):
 			cmds.deleteUI(windowName)
-		window = cmds.window(windowName, menuBar = True,t="LCMT v3.2.0")
+		window = cmds.window(windowName, menuBar = True,t="LCMT v3.2.1")
 		fileMenu = cmds.menu( label='Manage Light Types')
 		cmds.menuItem( label='Add More Light Types',command=lambda *args:self.addLightTypes()) 
 		cmds.menuItem( label='See Current Light Types', command=lambda *args:self.displayLightTypes()) 
