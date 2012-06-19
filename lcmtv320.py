@@ -5,7 +5,7 @@ import os
 
 class LCMT:
 	"""Light Contribution Management Tool
-	Version: 3.2.1
+	Version: 3.3.0
 	Author: Nestor Prado
 	more@nestorprado.com
 	SCAD Spring 2012"""
@@ -157,7 +157,66 @@ class LCMT:
 			layerElements = geometry + lightTrans
 			layerName = self.extractLightName(lightTrans[-1])
 			cmds.createRenderLayer(layerElements, name=layerName)
-		   
+
+	def createRenderElementsFromLights(self, selectedGeometry=[], lightsSelected=[]):
+		#select all the lights in the scene includin IBL nodes    
+		lights = cmds.ls(type=self.lightTypes)
+
+		if selectedGeometry !=None and selectedGeometry !=[]:   
+			geometry = selectedGeometry
+		else: 
+
+			#UPDATE:
+			geometry =  cmds.ls(dag=True,geometry=True, selection=True)
+			if geometry == []:
+				#select all the geometry in the scene
+				geometry =  cmds.ls(geometry=True)
+			#take out the ibl shapes from the geo selection
+			geometry = list(set(geometry) - set(lights))   
+
+		if lightsSelected !=None and lightsSelected !=[]:
+			selectedLights = lightsSelected
+		else:
+			#see if there is any number of lights the the artist has selected 
+			selectedLights = cmds.ls(dag=True, selection=True, type=self.lightTypes)
+
+		#if there isn't any lights selected just create one layer for each light      
+		if selectedLights == []:
+			lightGroups = self.groupLightsByName(lights)
+			for group in lightGroups:   
+				layerElements = lightGroups[group]
+				layerName = self.extractLightName(lightGroups[group][-1])
+				
+				#instead of creating a render layer we create a render element light select in vray
+				#cmds.createRenderLayer(layerElements, name=layerName)
+				
+				#create Render Element easier in mel
+				mel.eval("vrayAddRenderElement LightSelectElement") 
+				LightSelectNode = cmds.ls(selection=True)
+				#rename it to something convenient
+				LightSelectNode = cmds.rename(LightSelectNode, 'vrayRE_'+layerName)
+				cmds.setAttr('%s.vray_name_lightselect' % LightSelectNode, layerName, type="string")
+				#assign the lights to the render element that is a set in maya
+				cmds.sets(layerElements, e=True, forceElement=LightSelectNode)
+
+				
+		else:
+			#if we have a certain number of lights selected create a layer with all of those lights attached
+			lightTrans = cmds.listRelatives(selectedLights, p=1)   
+			layerElements = lightTrans
+			layerName = self.extractLightName(lightTrans[-1])
+			
+			#instead of creating a render layer we create a render element light select in vray
+			#cmds.createRenderLayer(layerElements, name=layerName)
+			
+			#create Render Element easier in mel
+			mel.eval("vrayAddRenderElement LightSelectElement") 
+			LightSelectNode = cmds.ls(selection=True)
+			#rename it to something convenient
+			LightSelectNode = cmds.rename(LightSelectNode, 'vrayRE_'+layerName)
+			cmds.setAttr('%s.vray_name_lightselect' % LightSelectNode, layerName, type="string")
+			#assign the lights to the render element that is a set in maya
+			cmds.sets(layerElements, e=True, forceElement=LightSelectNode)
 			
 	def sortLightsByType(self, lights):
 		lightTypes = []
@@ -350,7 +409,7 @@ class LCMT:
 		windowName = 'LCMTUIWindow'
 		if cmds.window(windowName, exists=True):
 			cmds.deleteUI(windowName)
-		window = cmds.window(windowName, menuBar = True,t="LCMT v3.2.1")
+		window = cmds.window(windowName, menuBar = True,t="LCMT v3.3.0")
 		fileMenu = cmds.menu( label='Manage Light Types')
 		cmds.menuItem( label='Add More Light Types',command=lambda *args:self.addLightTypes()) 
 		cmds.menuItem( label='See Current Light Types', command=lambda *args:self.displayLightTypes()) 
@@ -379,6 +438,7 @@ class LCMT:
 		geoList = cmds.iconTextScrollList(allowMultiSelection=True, append=geometry,selectCommand=lambda *args: cmds.select(cmds.iconTextScrollList(geoList, query=True, si=True )) )
 		cmds.text('Create Render Layers from selected geometry and lights')      
 		cmds.button(label='Create Render Layers!', command = lambda *args: self.createLayersFromLights(cmds.iconTextScrollList(geoList, query=True, si=True ),self.getElementsFromLightScrollList(lightList,useGroupLights)))  
+		cmds.button(label='Create Render Elements (VRay Only)', command = lambda *args: self.createRenderElementsFromLights(cmds.iconTextScrollList(geoList, query=True, si=True ),self.getElementsFromLightScrollList(lightList,useGroupLights)))  
 		cmds.setParent('..')
 		cmds.showWindow()
 
