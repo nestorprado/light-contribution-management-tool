@@ -271,7 +271,7 @@ class LCMT:
 		#See if we are using vray frame buffer and save it to the maya render buffer
 		if self.isRenderEngineInstalled('vray'):
 			if cmds.getAttr ("vraySettings.vfbOn"):
-				vrend -cloneVFB;                        
+				mel.eval("vrend -cloneVFB")                                              
 
 		rv = cmds.getPanel(scriptType='renderWindowPanel')
 		caption = cmds.renderWindowEditor(rv, query=True, pca=True)            
