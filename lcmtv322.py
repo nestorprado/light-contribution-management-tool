@@ -5,7 +5,7 @@ import os
 
 class LCMT:
 	"""Light Contribution Management Tool
-	Version: 3.4.0
+	Version: 3.3.0
 	Author: Nestor Prado
 	more@nestorprado.com
 	SCAD Spring 2012"""
@@ -271,7 +271,7 @@ class LCMT:
 		#See if we are using vray frame buffer and save it to the maya render buffer
 		if self.isRenderEngineInstalled('vray'):
 			if cmds.getAttr ("vraySettings.vfbOn"):
-				mel.eval("vrend -cloneVFB")                                              
+				vrend -cloneVFB;                        
 
 		rv = cmds.getPanel(scriptType='renderWindowPanel')
 		caption = cmds.renderWindowEditor(rv, query=True, pca=True)            
@@ -402,64 +402,18 @@ class LCMT:
 	def toggleSaveImages(self):
 
 		self.saveImages = not(self.saveImages)
-	
-	def changeLightParams(self,lightList,useGroupLights ,parameter):
 
-		print "Parameter to Change", parameter
-		lightsSelected = self.getElementsFromLightScrollList(lightList,useGroupLights)
-		
-		if lightsSelected !=None and lightsSelected !=[]:
-			selectedLights = lightsSelected
-		else:
-			#see if there is any number of lights the the artist has selected 
-			selectedLights = cmds.ls(dag=True, selection=True, type=self.lightTypes)
-
-		#if there isn't any lights selected just create one layer for each light      
-		if selectedLights == []:
-			print "Please Select some lights"
-			return
-		
-		result = cmds.promptDialog(
-					title='Enter '+parameter+' value to change',
-					message='Enter '+parameter+' value to change:',
-					button=['OK', 'Cancel'],
-					defaultButton='OK',
-					cancelButton='Cancel',
-					dismissString='Cancel')
-
-		if result == 'OK':
-			text = cmds.promptDialog(query=True, text=True)
-		elif result == 'Cancel':
-			return
-			
-		for light in selectedLights:
-			if parameter == "intensity":
-				cmds.setAttr('%s.intensity' % light, float(text))
-			if parameter == "rename":
-				#
-				light = cmds.listRelatives(light, p=1) 
-				cmds.rename(light, text, ignoreShape = False)
-				self.updateScollList(True, lightList)
-				self.updateScollList(False, lightList)
-			
-		
-		
 		
 	def displayUI(self):
 		
 		windowName = 'LCMTUIWindow'
 		if cmds.window(windowName, exists=True):
 			cmds.deleteUI(windowName)
-		window = cmds.window(windowName, menuBar = True,t="LCMT v3.4.0")
+		window = cmds.window(windowName, menuBar = True,t="LCMT v3.3.0")
 		fileMenu = cmds.menu( label='Manage Light Types')
 		cmds.menuItem( label='Add More Light Types',command=lambda *args:self.addLightTypes()) 
 		cmds.menuItem( label='See Current Light Types', command=lambda *args:self.displayLightTypes()) 
 		cmds.menuItem( label='Reset Light Types to Default Values', command=lambda *args:self.resetLightTypesToDefault()) 
-		
-		changesMenu = cmds.menu( label='Edit Multiple Light Param')
-		cmds.menuItem( label='Intensity',command=lambda *args:self.changeLightParams(lightList,useGroupLights,"intensity")) 
-		cmds.menuItem( label='Rename',command=lambda *args:self.changeLightParams(lightList,useGroupLights,"rename")) 
-		
 		
 		cmds.paneLayout( configuration='vertical2' )
 		lightStageColumn = cmds.columnLayout(adjustableColumn=True)
@@ -474,7 +428,6 @@ class LCMT:
 		cmds.setParent('..')
 		cmds.iconTextScrollList(lightList,edit=True,selectCommand=lambda *args: cmds.select(self.getElementsFromLightScrollList(lightList,useGroupLights),vis=True))    
 		cmds.button(label='Render Lights!', command = lambda *args: self.renderAllLights(self.getElementsFromLightScrollList(lightList,useGroupLights),cmds.checkBox(useGroupLights, query=True, value=True)))  
-		cmds.text('more@nestorprado.com')   
 		cmds.setParent('..')
 		renderLayersColumn = cmds.columnLayout(adjustableColumn=True)
 		#new column    
