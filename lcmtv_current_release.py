@@ -5,10 +5,10 @@ import os
 
 class LCMT:
 	"""Light Contribution Management Tool
-	Version: 3.4.1
+	Version: 3.5.1
 	Author: Nestor Prado
 	more@nestorprado.com
-	SCAD Spring 2012"""
+	2012"""
 	
 	lightDB = ''
 	path = ''
@@ -17,6 +17,10 @@ class LCMT:
 	MentalRayLightTypes = ['mentalrayIblShape'] 
 	RenderManLightTypes = ['RmanEnvLightShape'] #revise with renderman
 	VrayLightTypes = ['VRayLightIESShape', 'VRayLightMesh', 'VRayLightMeshLightLinking', 'VRayLightMtl', 'VRayLightRectShape', 'VRayLightSphereShape']
+	
+	#Bug fix Issue #1 and #8 
+	NonGeoTypes = ['VRayEnvironmentPreview','cylindricalLightLocator', 'discLightLocator', 'rectangularLightLocator', 'sphericalLightLocator']
+	
 	lightTypes = []
 	
 	def __init__(self):
@@ -50,6 +54,7 @@ class LCMT:
 		if self.isRenderEngineInstalled('mentalRay'):
 			print 'Yes mental ray'
 			self.lightTypes += self.MentalRayLightTypes
+			
 	    
 		#query if RenderMan is installed
 		if self.isRenderEngineInstalled('renderman'):
@@ -134,7 +139,8 @@ class LCMT:
 				#select all the geometry in the scene
 				geometry =  cmds.ls(geometry=True)
 			#take out the ibl shapes from the geo selection
-			geometry = list(set(geometry) - set(lights))   
+			#											   Bug fix Issue #1 and #8 
+			geometry = list(set(geometry) - set(lights) -set(cmds.ls(visible=True,type =self.NonGeoTypes)))   
 	   
 		if lightsSelected !=None and lightsSelected !=[]:
 			selectedLights = lightsSelected
@@ -447,13 +453,33 @@ class LCMT:
 	def refreshList(self,list):
 			self.updateScollList(True, list)
 			self.updateScollList(False, list)
-			
+
+	def createLight(self, type, lightList):
+		
+		if type == "area":
+			light = cmds.shadingNode ('areaLight', asLight=True)
+			self.refreshList(lightList)
+			return
+		if type == "areaMR":
+			light = cmds.shadingNode ('areaLight', asLight=True)
+			cmds.setAttr('%s.intensity' % light, 100)
+			cmds.setAttr('%s.decayRate' % light, 2)
+			cmds.setAttr('%s.useRayTraceShadows' % light, 1)
+			cmds.setAttr('%s.areaLight' % light, 1)
+			self.refreshList(lightList)
+			return
+		if type == "spot":
+			light = cmds.shadingNode ('spotLight', asLight=True)
+			self.refreshList(lightList)
+			return
+
+					
 	def displayUI(self):
 		
 		windowName = 'LCMTUIWindow'
 		if cmds.window(windowName, exists=True):
 			cmds.deleteUI(windowName)
-		window = cmds.window(windowName, menuBar = True,t="LCMT v3.4.1")
+		window = cmds.window(windowName, menuBar = True,t="LCMT v3.5.1")
 		fileMenu = cmds.menu( label='Manage Light Types')
 		cmds.menuItem( label='Add More Light Types',command=lambda *args:self.addLightTypes()) 
 		cmds.menuItem( label='See Current Light Types', command=lambda *args:self.displayLightTypes()) 
@@ -462,6 +488,11 @@ class LCMT:
 		changesMenu = cmds.menu( label='Edit Multiple Light Param')
 		cmds.menuItem( label='Intensity',command=lambda *args:self.changeLightParams(lightList,useGroupLights,"intensity")) 
 		cmds.menuItem( label='Rename',command=lambda *args:self.changeLightParams(lightList,useGroupLights,"rename")) 
+		
+		createMenu = cmds.menu( label='Create new lights')
+		cmds.menuItem( label='Area Light',command=lambda *args:self.createLight("area",lightList))
+		cmds.menuItem( label='Area Light MR',command=lambda *args:self.createLight("areaMR",lightList)) 
+		cmds.menuItem( label='Spot Light',command=lambda *args:self.createLight("spot",lightList)) 
 		
 		
 		cmds.paneLayout( configuration='vertical2' )
@@ -472,7 +503,7 @@ class LCMT:
 		cmds.setParent('..')
 		print self.lightTypes
 		lights = cmds.ls(dag =True,visible=True,type =self.lightTypes)  
-		print lights
+		print "lights", lights
 		lightList = cmds.iconTextScrollList(allowMultiSelection=True,  append=lights)
 		cmds.rowLayout(numberOfColumns = 2)
 		useGroupLights = cmds.checkBox( label='Group Lights', onCommand = lambda *args: self.updateScollList(True, lightList), offCommand = lambda *args: self.updateScollList(False, lightList))    
@@ -483,18 +514,22 @@ class LCMT:
 		cmds.button(label='Render Lights!', command = lambda *args: self.renderAllLights(self.getElementsFromLightScrollList(lightList,useGroupLights),cmds.checkBox(useGroupLights, query=True, value=True)))  
 		cmds.text('more@nestorprado.com')   
 		cmds.setParent('..')
-		renderLayersColumn = cmds.columnLayout(adjustableColumn=True)
 		#new column    
+		renderLayersColumn = cmds.columnLayout(adjustableColumn=True)
 		cmds.text('Geometry in the SCENE')
 		
 		geometry =  cmds.ls(geometry=True)
+
 		#take out the ibl shapes from the geo selection
-		geometry = list(set(geometry) - set(lights))   
+		#											   Bug fix Issue #1 and #8 
+		geometry = list(set(geometry) - set(lights)- set(cmds.ls(visible=True,type =self.NonGeoTypes)))   
+		
 		geoList = cmds.iconTextScrollList(allowMultiSelection=True, append=geometry,selectCommand=lambda *args: cmds.select(cmds.iconTextScrollList(geoList, query=True, si=True )) )
 		cmds.text('Create Render Layers from selected geometry and lights')      
 		cmds.button(label='Create Render Layers!', command = lambda *args: self.createLayersFromLights(cmds.iconTextScrollList(geoList, query=True, si=True ),self.getElementsFromLightScrollList(lightList,useGroupLights)))  
 		cmds.button(label='Create Render Elements (VRay Only)', command = lambda *args: self.createRenderElementsFromLights(cmds.iconTextScrollList(geoList, query=True, si=True ),self.getElementsFromLightScrollList(lightList,useGroupLights)))  
 		cmds.setParent('..')
+		
 		cmds.showWindow()
 
 LCMT = LCMT()
