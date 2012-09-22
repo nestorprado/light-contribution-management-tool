@@ -9,20 +9,20 @@ class LCMT:
 	Author: Nestor Prado
 	more@nestorprado.com
 	2012"""
-	
+
 	lightDB = ''
 	path = ''
 	fullPath = ''
 	saveImages = False
 	MentalRayLightTypes = ['mentalrayIblShape'] 
-	RenderManLightTypes = ['RmanEnvLightShape'] #revise with renderman
+	RenderManLightTypes = []#['RmanEnvLightShape'] #revise with renderman
 	VrayLightTypes = ['VRayLightIESShape', 'VRayLightMesh', 'VRayLightMeshLightLinking', 'VRayLightMtl', 'VRayLightRectShape', 'VRayLightSphereShape']
-	
+
 	#Bug fix Issue #1 and #8 
-	NonGeoTypes = ['VRayEnvironmentPreview','cylindricalLightLocator', 'discLightLocator', 'rectangularLightLocator', 'sphericalLightLocator']
-	
+	NonGeoTypes = ['cylindricalLightLocator', 'discLightLocator', 'rectangularLightLocator', 'sphericalLightLocator']
+
 	lightTypes = []
-	
+
 	def __init__(self):
 		#Create new file for database if there isn't one
 		self.path = cmds.workspace(q=True, rd=True)+'scripts/'
@@ -46,24 +46,24 @@ class LCMT:
 		#check which rendering engines are currently installed to not have any
 		#errors when searching for light types in the future
 		#since I don't know a quick way of querying what render engines are currently installed I'll use this workarround
-	
+
 		self.lightTypes.append('light') #default maya light types
-	
-		
+
+
 		#query if mental ray is installed
 		if self.isRenderEngineInstalled('mentalRay'):
-			print 'Yes mental ray'
 			self.lightTypes += self.MentalRayLightTypes
-			
-	    
+
+
 		#query if RenderMan is installed
 		if self.isRenderEngineInstalled('renderman'):
 			self.lightTypes += self.RenderManLightTypes
 		#query if Vray is installed
 		if self.isRenderEngineInstalled('vray'):
 			self.lightTypes += self.VrayLightTypes
-		
-		print 'the current ligh types in this maya can be', self.lightTypes	        
+			self.NonGeoTypes.append('VRayEnvironmentPreview')
+
+		print 'the current light types in this maya can be', self.lightTypes	        
 
 	def isRenderEngineInstalled(self,renderEngineName):
         
@@ -71,24 +71,24 @@ class LCMT:
 		#this prevents LCMT from not not working when the mentalray pluguin isn't installed by default
 		if renderEngineName == 'mentalray' or renderEngineName == 'mentalRay':
 			renderEngineName =  self.MentalRayLightTypes[-1]
-			
+
 		#query all the types and look for Vray Types, and Renderman Types
 		AllTypes = cmds.allNodeTypes()
 		regex = '\w*'+renderEngineName+'\w*'    
 		to_find = re.compile(regex,re.IGNORECASE)
 		to_search = ", ".join(AllTypes)
 		match = re.search(to_find, to_search)
-		
+
 		if match!=None:
-			print 'Found it'
+			print 'Found',renderEngineName
 			print match.group()
 			return True
 		else:
-			print 'Didn\'t'
+			print 'Didn\'t find',renderEngineName
 			return False
    
 	def addLightTypesToFile(self, newContents=''):
-		
+
 		if os.path.exists(self.fullPath):
 			f = open(self.fullPath, 'a')
 			f.write('|'+newContents)
@@ -96,11 +96,11 @@ class LCMT:
 			f = open(self.fullPath, 'r')
 			self.lightDB = f.read()
 			f.close()
-			
+
 		else:
 			print 'ERROR Writing file: ', self.fullPath, 'it doesn\'t EXIST!!'
 			return -1
-		
+
 
 	def extractLightName(self, name):
 		lightTypes = self.lightDB
@@ -110,7 +110,7 @@ class LCMT:
 		if match!=None:
 			return match.group().lower()
 		else:        return name
-	   
+
 	def groupLightsByName(self, lights):
 
 		lightGroups = dict()
@@ -124,15 +124,15 @@ class LCMT:
 		return lightGroups
 
 
-			
+
 	def createLayersFromLights(self, selectedGeometry=[], lightsSelected=[]):
 		#select all the lights in the scene includin IBL nodes    
 		lights = cmds.ls(type=self.lightTypes)
-		
+
 		if selectedGeometry !=None and selectedGeometry !=[]:   
 			geometry = selectedGeometry
 		else: 
-		
+
 			#UPDATE:
 			geometry =  cmds.ls(dag=True,geometry=True, selection=True)
 			if geometry == []:
@@ -140,14 +140,14 @@ class LCMT:
 				geometry =  cmds.ls(geometry=True)
 			#take out the ibl shapes from the geo selection
 			#											   Bug fix Issue #1 and #8 
-			geometry = list(set(geometry) - set(lights) -set(cmds.ls(visible=True,type =self.NonGeoTypes)))   
-	   
+			geometry = list(set(geometry) - set(lights) -set(cmds.ls(type =self.NonGeoTypes)))   
+
 		if lightsSelected !=None and lightsSelected !=[]:
 			selectedLights = lightsSelected
 		else:
 			#see if there is any number of lights the the artist has selected 
 			selectedLights = cmds.ls(dag=True, selection=True, type=self.lightTypes)
-		
+
 		#if there isn't any lights selected just create one layer for each light      
 		if selectedLights == []:
 			lightGroups = self.groupLightsByName(lights)
@@ -192,10 +192,10 @@ class LCMT:
 			for group in lightGroups:   
 				layerElements = lightGroups[group]
 				layerName = self.extractLightName(lightGroups[group][-1])
-				
+
 				#instead of creating a render layer we create a render element light select in vray
 				#cmds.createRenderLayer(layerElements, name=layerName)
-				
+
 				#create Render Element easier in mel
 				mel.eval("vrayAddRenderElement LightSelectElement") 
 				LightSelectNode = cmds.ls(selection=True)
@@ -205,16 +205,16 @@ class LCMT:
 				#assign the lights to the render element that is a set in maya
 				cmds.sets(layerElements, e=True, forceElement=LightSelectNode)
 
-				
+
 		else:
 			#if we have a certain number of lights selected create a layer with all of those lights attached
 			lightTrans = cmds.listRelatives(selectedLights, p=1)   
 			layerElements = lightTrans
 			layerName = self.extractLightName(lightTrans[-1])
-			
+
 			#instead of creating a render layer we create a render element light select in vray
 			#cmds.createRenderLayer(layerElements, name=layerName)
-			
+
 			#create Render Element easier in mel
 			mel.eval("vrayAddRenderElement LightSelectElement") 
 			LightSelectNode = cmds.ls(selection=True)
@@ -223,7 +223,7 @@ class LCMT:
 			cmds.setAttr('%s.vray_name_lightselect' % LightSelectNode, layerName, type="string")
 			#assign the lights to the render element that is a set in maya
 			cmds.sets(layerElements, e=True, forceElement=LightSelectNode)
-			
+
 	def sortLightsByType(self, lights):
 		lightTypes = []
 		type=1
@@ -254,7 +254,7 @@ class LCMT:
 		return cmds.getAttr('%s.visibility' % lightTrans) == False or cmds.getAttr('%s.visibility' % light) == False
 
 	def renderOnlyThisLight(self, lights):
-		
+
 		if type(lights)!=list:
 			lights = [lights]
 		lightNames =''
@@ -264,16 +264,16 @@ class LCMT:
 			if self.isLightHidden(light) :
 				cmds.showHidden(light)
 				wasHidden = True
-		
+
 			#-Revise!--if it is an ibl light then turn off emit Final Gather
 			if cmds.objectType( light, isType='mentalrayIblShape' ) == True:
 				if cmds.getAttr('%s.visibleInFinalGather' % light) == False:
 					cmds.setAttr('%s.visibleInFinalGather' % light, 1)
-		
+
 					wasHidden = True
-		
+
 		mel.eval("renderIntoNewWindow render")   
-		
+
 		#See if we are using vray frame buffer and save it to the maya render buffer
 		if self.isRenderEngineInstalled('vray'):
 			if cmds.getAttr ("vraySettings.vfbOn"):
@@ -283,13 +283,13 @@ class LCMT:
 		caption = cmds.renderWindowEditor(rv, query=True, pca=True)            
 		newCaption = caption+' contriburion of '+lightNames.replace('_',' ')
 		cmds.renderWindowEditor(rv, edit=True, pca= newCaption)
-			   
+
 		# save the frame in mel
 		mel.eval("renderWindowMenuCommand keepImageInRenderView renderView;")
-		
+
 		if self.saveImages:
 			self.saveCurrentImageInRenderView('contributionOf'+lightNames)
-		
+
 		for light in lights:
 			if wasHidden:
 				cmds.hide(light)
@@ -310,27 +310,27 @@ class LCMT:
 		lightNames = ""
 		for light in renderLights:
 			lightNames = lightNames + light + '\n' 
-				
+
 
 		windowName = 'ProgressWindow'
 		if cmds.window(windowName, exists=True):
 			cmds.deleteUI(windowName)
-			
+
 		window = cmds.window(windowName,t="Progress Report")
-		
+
 		cmds.columnLayout()
 		cmds.iconTextStaticLabel( st='textOnly', l='Rendering Lights:' )
 		cmds.iconTextStaticLabel( st='textOnly', l=lightNames )
 		cmds.iconTextStaticLabel( st='textOnly', l='Process Bar' )
 		progressControl = cmds.progressBar(maxValue=len(renderLights), width=300)
 		cmds.showWindow( window )    
-		
+
 		lights = self.sortLightsByType(lights)
 		#-Revised--hide ibl node that is at the end of lights list (sorted previously)
 		if cmds.objectType( lights[-1], isType='mentalrayIblShape' ) == True:
 			cmds.setAttr('%s.visibleInFinalGather' % lights[-1], 0)
 			cmds.setAttr('%s.visibleInEnvironment' % lights[-1], 0)
-				
+
 		cmds.hide(lights)
 		lightCount = 0
 
@@ -347,7 +347,7 @@ class LCMT:
 				self.renderOnlyThisLight(light) 
 				progressInc = cmds.progressBar(progressControl, edit=True, pr=lightCount+1) 
 				lightCount+=1
-					
+
 		cmds.showHidden(lights)  
 		#-Revised--since we sorted the lights by type we know that the lastone will be the IBL
 		if cmds.objectType( lights[-1], isType='mentalrayIblShape' ) == True:
@@ -355,7 +355,7 @@ class LCMT:
 			cmds.setAttr('%s.visibleInEnvironment' % lights[-1], 1)
 
 	def updateScollList(self, mode, listName):
-		
+
 		lights = cmds.ls(dag =True,visible=True,type=self.lightTypes)  
 		lightGroups = self.groupLightsByName(lights)
 		if mode:
@@ -392,29 +392,29 @@ class LCMT:
 			text = cmds.promptDialog(query=True, text=True)
 			text = text.replace(',','|')
 			self.addLightTypesToFile(text)
-			
+
 	def displayLightTypes(self):
 		 oldLightTypes = self.lightDB.replace('|',',')
 		 cmds.confirmDialog(message='The Light Types in the DB are:\n'+oldLightTypes)
 
 	def resetLightTypesToDefault(self):
-		
+
 		result = cmds.confirmDialog( title='Confirm', message='Are you sure?', button=['Yes','No'], defaultButton='Yes', cancelButton='No', dismissString='No' )
 		if result == 'Yes':
 			f = open(self.fullPath, 'w')
 			f.write('key|bounce|rim|background|wall|kick')
 			f.close()
 			self.lightDB='key|bounce|rim|background|wall|kick'
-	
+
 	def toggleSaveImages(self):
 
 		self.saveImages = not(self.saveImages)
-	
+
 	def changeLightParams(self,lightList,useGroupLights ,parameter):
 
 		print "Parameter to Change", parameter
 		lightsSelected = self.getElementsFromLightScrollList(lightList,useGroupLights)
-		
+
 		if lightsSelected !=None and lightsSelected !=[]:
 			selectedLights = lightsSelected
 		else:
@@ -425,7 +425,7 @@ class LCMT:
 		if selectedLights == []:
 			print "Please Select some lights"
 			return
-		
+
 		result = cmds.promptDialog(
 					title='Enter '+parameter+' value to change',
 					message='Enter '+parameter+' value to change:',
@@ -438,7 +438,7 @@ class LCMT:
 			text = cmds.promptDialog(query=True, text=True)
 		elif result == 'Cancel':
 			return
-			
+
 		for light in selectedLights:
 			if parameter == "intensity":
 				cmds.setAttr('%s.intensity' % light, float(text))
@@ -447,15 +447,15 @@ class LCMT:
 				light = cmds.listRelatives(light, p=1) 
 				cmds.rename(light, text, ignoreShape = False)
 				self.refreshList(lightList)
-				
-		
-		
+
+
+
 	def refreshList(self,list):
 			self.updateScollList(True, list)
 			self.updateScollList(False, list)
 
 	def createLight(self, type, lightList):
-		
+
 		if type == "area":
 			light = cmds.shadingNode ('areaLight', asLight=True)
 			self.refreshList(lightList)
@@ -473,9 +473,9 @@ class LCMT:
 			self.refreshList(lightList)
 			return
 
-					
+
 	def displayUI(self):
-		
+
 		windowName = 'LCMTUIWindow'
 		if cmds.window(windowName, exists=True):
 			cmds.deleteUI(windowName)
@@ -484,17 +484,17 @@ class LCMT:
 		cmds.menuItem( label='Add More Light Types',command=lambda *args:self.addLightTypes()) 
 		cmds.menuItem( label='See Current Light Types', command=lambda *args:self.displayLightTypes()) 
 		cmds.menuItem( label='Reset Light Types to Default Values', command=lambda *args:self.resetLightTypesToDefault()) 
-		
+
 		changesMenu = cmds.menu( label='Edit Multiple Light Param')
 		cmds.menuItem( label='Intensity',command=lambda *args:self.changeLightParams(lightList,useGroupLights,"intensity")) 
 		cmds.menuItem( label='Rename',command=lambda *args:self.changeLightParams(lightList,useGroupLights,"rename")) 
-		
+
 		createMenu = cmds.menu( label='Create new lights')
 		cmds.menuItem( label='Area Light',command=lambda *args:self.createLight("area",lightList))
 		cmds.menuItem( label='Area Light MR',command=lambda *args:self.createLight("areaMR",lightList)) 
 		cmds.menuItem( label='Spot Light',command=lambda *args:self.createLight("spot",lightList)) 
-		
-		
+
+
 		cmds.paneLayout( configuration='vertical2' )
 		lightStageColumn = cmds.columnLayout(adjustableColumn=True)
 		cmds.rowLayout(numberOfColumns = 2)
@@ -508,7 +508,7 @@ class LCMT:
 		cmds.rowLayout(numberOfColumns = 2)
 		useGroupLights = cmds.checkBox( label='Group Lights', onCommand = lambda *args: self.updateScollList(True, lightList), offCommand = lambda *args: self.updateScollList(False, lightList))    
 		cmds.checkBox( label='Save Images?', cc = lambda *args: self.toggleSaveImages())  
-		
+
 		cmds.setParent('..')
 		cmds.iconTextScrollList(lightList,edit=True,selectCommand=lambda *args: cmds.select(self.getElementsFromLightScrollList(lightList,useGroupLights),vis=True))    
 		cmds.button(label='Render Lights!', command = lambda *args: self.renderAllLights(self.getElementsFromLightScrollList(lightList,useGroupLights),cmds.checkBox(useGroupLights, query=True, value=True)))  
@@ -517,22 +517,20 @@ class LCMT:
 		#new column    
 		renderLayersColumn = cmds.columnLayout(adjustableColumn=True)
 		cmds.text('Geometry in the SCENE')
-		
+
 		geometry =  cmds.ls(geometry=True)
 
 		#take out the ibl shapes from the geo selection
 		#											   Bug fix Issue #1 and #8 
-		geometry = list(set(geometry) - set(lights)- set(cmds.ls(visible=True,type =self.NonGeoTypes)))   
-		
+		geometry = list(set(geometry) - set(lights)- set(cmds.ls(type =self.NonGeoTypes)))   
+
 		geoList = cmds.iconTextScrollList(allowMultiSelection=True, append=geometry,selectCommand=lambda *args: cmds.select(cmds.iconTextScrollList(geoList, query=True, si=True )) )
 		cmds.text('Create Render Layers from selected geometry and lights')      
 		cmds.button(label='Create Render Layers!', command = lambda *args: self.createLayersFromLights(cmds.iconTextScrollList(geoList, query=True, si=True ),self.getElementsFromLightScrollList(lightList,useGroupLights)))  
 		cmds.button(label='Create Render Elements (VRay Only)', command = lambda *args: self.createRenderElementsFromLights(cmds.iconTextScrollList(geoList, query=True, si=True ),self.getElementsFromLightScrollList(lightList,useGroupLights)))  
 		cmds.setParent('..')
-		
+
 		cmds.showWindow()
 
 LCMT = LCMT()
 LCMT.displayUI()
-
-
