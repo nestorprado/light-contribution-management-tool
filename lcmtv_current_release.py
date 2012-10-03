@@ -5,7 +5,7 @@ import os
 
 class LCMT:
 	"""Light Contribution Management Tool
-	Version: 3.5.1
+	Version: 3.5.2
 	Author: Nestor Prado
 	more@nestorprado.com
 	2012"""
@@ -410,6 +410,14 @@ class LCMT:
 
 		self.saveImages = not(self.saveImages)
 
+	def isLightVray(self, light):
+		#Fixes Bug 9 fixed
+		for type in self.VrayLightTypes:
+			if cmds.objectType( light, isAType=type ) == True:
+				return True
+		return False
+
+
 	def changeLightParams(self,lightList,useGroupLights ,parameter):
 
 		print "Parameter to Change", parameter
@@ -441,7 +449,11 @@ class LCMT:
 
 		for light in selectedLights:
 			if parameter == "intensity":
-				cmds.setAttr('%s.intensity' % light, float(text))
+				#Bug 9 fixed
+				if self.isLightVray(light) == True:
+					cmds.setAttr('%s.intensityMult' % light, float(text))
+				else:	
+					cmds.setAttr('%s.intensity' % light, float(text))
 			if parameter == "rename":
 				#
 				light = cmds.listRelatives(light, p=1) 
