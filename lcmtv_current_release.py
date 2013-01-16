@@ -5,11 +5,12 @@ import os
 
 class LCMT:
 	"""Light Contribution Management Tool
-	Version: 3.5.2
+	Version: 3.6.1
 	Author: Nestor Prado
 	more@nestorprado.com
 	2012"""
-
+	
+	version = '[LCMT v. 3.6.1]'
 	lightDB = ''
 	path = ''
 	fullPath = ''
@@ -17,7 +18,8 @@ class LCMT:
 	MentalRayLightTypes = ['mentalrayIblShape'] 
 	RenderManLightTypes = []#['RmanEnvLightShape'] #revise with renderman
 	VrayLightTypes = ['VRayLightIESShape', 'VRayLightMesh', 'VRayLightMeshLightLinking', 'VRayLightMtl', 'VRayLightRectShape', 'VRayLightSphereShape']
-
+	ArnoldLightTypes = ['aiAreaLight','aiSkyDomeLight']
+	
 	#Bug fix Issue #1 and #8 
 	NonGeoTypes = ['cylindricalLightLocator', 'discLightLocator', 'rectangularLightLocator', 'sphericalLightLocator']
 
@@ -53,17 +55,29 @@ class LCMT:
 		#query if mental ray is installed
 		if self.isRenderEngineInstalled('mentalRay'):
 			self.lightTypes += self.MentalRayLightTypes
-
+			print self.version, "Mental Ray is installed"
 
 		#query if RenderMan is installed
 		if self.isRenderEngineInstalled('renderman'):
 			self.lightTypes += self.RenderManLightTypes
+			print self.version, "Renderman is installed"
+			
 		#query if Vray is installed
 		if self.isRenderEngineInstalled('vray'):
 			self.lightTypes += self.VrayLightTypes
 			self.NonGeoTypes.append('VRayEnvironmentPreview')
+			print self.version, "Vray is installed"
 
-		print 'the current light types in this maya can be', self.lightTypes	        
+
+		#query if Arnold is Installed
+		if self.isRenderEngineInstalled('arnold'):
+			self.lightTypes += self.ArnoldLightTypes
+			for types in self.ArnoldLightTypes:
+				self.NonGeoTypes.append(types)
+			print self.version, "Arnold is installed"		
+
+		print self.version, 'current light types:', self.lightTypes	        
+		print self.version, 'current NonGeoTypes', self.NonGeoTypes	        
 
 	def isRenderEngineInstalled(self,renderEngineName):
         
@@ -71,7 +85,12 @@ class LCMT:
 		#this prevents LCMT from not not working when the mentalray pluguin isn't installed by default
 		if renderEngineName == 'mentalray' or renderEngineName == 'mentalRay':
 			renderEngineName =  self.MentalRayLightTypes[-1]
-
+		#Arnold compatibility
+		elif renderEngineName == 'arnold':
+			#Since all there is no node specifically named arnold we use the 
+			#standard shader node name to see if arnold is indeed installed or no
+			renderEngineName = 'aiStandard'
+			
 		#query all the types and look for Vray Types, and Renderman Types
 		AllTypes = cmds.allNodeTypes()
 		regex = '\w*'+renderEngineName+'\w*'    
@@ -80,11 +99,11 @@ class LCMT:
 		match = re.search(to_find, to_search)
 
 		if match!=None:
-			print 'Found',renderEngineName
-			print match.group()
+			#print 'Found',renderEngineName
+			#print match.group()
 			return True
 		else:
-			print 'Didn\'t find',renderEngineName
+			print self.version, 'Didn\'t find',renderEngineName
 			return False
    
 	def addLightTypesToFile(self, newContents=''):
@@ -128,14 +147,18 @@ class LCMT:
 	def createLayersFromLights(self, selectedGeometry=[], lightsSelected=[]):
 		#select all the lights in the scene includin IBL nodes    
 		lights = cmds.ls(type=self.lightTypes)
-
-		if selectedGeometry !=None and selectedGeometry !=[]:   
-			geometry = selectedGeometry
+			
+		if selectedGeometry !=None and selectedGeometry !=[]:  
+			geometry = list(set(selectedGeometry) - set(lights) -set(cmds.ls(type =self.NonGeoTypes)))
 		else: 
-
+			
 			#UPDATE:
 			geometry =  cmds.ls(dag=True,geometry=True, selection=True)
+			#Bug Fix Issue #10 (This takes out the lights that are geo types and makes sure we only have what we understand as geo
+			geometry = list(set(geometry) - set(lights) -set(cmds.ls(type =self.NonGeoTypes)))
 			if geometry == []:
+				
+		
 				#select all the geometry in the scene
 				geometry =  cmds.ls(geometry=True)
 			#take out the ibl shapes from the geo selection
@@ -161,6 +184,7 @@ class LCMT:
 			#if we have a certain number of lights selected create a layer with all of those lights attached
 			lightTrans = cmds.listRelatives(selectedLights, p=1)   
 			layerElements = geometry + lightTrans
+			
 			layerName = self.extractLightName(lightTrans[-1])
 			cmds.createRenderLayer(layerElements, name=layerName)
 
@@ -274,10 +298,11 @@ class LCMT:
 
 		mel.eval("renderIntoNewWindow render")   
 
-		#See if we are using vray frame buffer and save it to the maya render buffer
-		if self.isRenderEngineInstalled('vray'):
-			if cmds.getAttr ("vraySettings.vfbOn"):
-				mel.eval("vrend -cloneVFB")                                              
+		#See if we are rendering with vray frame buffer and save it to the maya render buffer
+		if cmds.getAttr('defaultRenderGlobals.currentRenderer') == 'vray':
+			if self.isRenderEngineInstalled('vray'):
+				if cmds.getAttr ("vraySettings.vfbOn"):
+					mel.eval("vrend -cloneVFB")                                              
 
 		rv = cmds.getPanel(scriptType='renderWindowPanel')
 		caption = cmds.renderWindowEditor(rv, query=True, pca=True)            
@@ -364,6 +389,8 @@ class LCMT:
 		else:
 		   cmds.iconTextScrollList(listName,edit=True, ra=True)
 		   cmds.iconTextScrollList(listName,edit=True, allowMultiSelection=True, append=lights)
+
+		
 
 	def getElementsFromLightScrollList(self, listName, useGroups):
 		lights = cmds.ls(dag =True,visible=True,type=self.lightTypes)  
@@ -478,10 +505,23 @@ class LCMT:
 			cmds.setAttr('%s.decayRate' % light, 2)
 			cmds.setAttr('%s.useRayTraceShadows' % light, 1)
 			cmds.setAttr('%s.areaLight' % light, 1)
+			cmds.setAttr('%s.rayDepthLimit' % light, 2)
+			
 			self.refreshList(lightList)
 			return
 		if type == "spot":
 			light = cmds.shadingNode ('spotLight', asLight=True)
+			self.refreshList(lightList)
+			return
+		if type == "spotMR":
+			light = cmds.shadingNode ('spotLight', asLight=True)
+			cmds.setAttr('%s.intensity' % light, 100)
+			cmds.setAttr('%s.decayRate' % light, 2)
+			cmds.setAttr('%s.useRayTraceShadows' % light, 1)
+			cmds.setAttr('%s.areaLight' % light, 1)
+			cmds.setAttr('%s.areaType' % light, 1)
+			cmds.setAttr('%s.rayDepthLimit' % light, 2)
+			
 			self.refreshList(lightList)
 			return
 
@@ -491,7 +531,7 @@ class LCMT:
 		windowName = 'LCMTUIWindow'
 		if cmds.window(windowName, exists=True):
 			cmds.deleteUI(windowName)
-		window = cmds.window(windowName, menuBar = True,t="LCMT v3.5.1")
+		window = cmds.window(windowName, menuBar = True,t=self.version)
 		fileMenu = cmds.menu( label='Manage Light Types')
 		cmds.menuItem( label='Add More Light Types',command=lambda *args:self.addLightTypes()) 
 		cmds.menuItem( label='See Current Light Types', command=lambda *args:self.displayLightTypes()) 
@@ -505,6 +545,8 @@ class LCMT:
 		cmds.menuItem( label='Area Light',command=lambda *args:self.createLight("area",lightList))
 		cmds.menuItem( label='Area Light MR',command=lambda *args:self.createLight("areaMR",lightList)) 
 		cmds.menuItem( label='Spot Light',command=lambda *args:self.createLight("spot",lightList)) 
+		cmds.menuItem( label='Spot Light MR',command=lambda *args:self.createLight("spotMR",lightList)) 
+
 
 
 		cmds.paneLayout( configuration='vertical2' )
