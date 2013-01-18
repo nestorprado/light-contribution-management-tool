@@ -5,19 +5,19 @@ import os
 
 class LCMT:
 	"""Light Contribution Management Tool
-	Version: 3.6.1
+	Version: 3.6.2
 	Author: Nestor Prado
 	more@nestorprado.com
 	2012"""
 	
-	version = '[LCMT v. 3.6.1]'
+	version = '[LCMT v. 3.6.2]'
 	lightDB = ''
 	path = ''
 	fullPath = ''
 	saveImages = False
 	MentalRayLightTypes = ['mentalrayIblShape'] 
 	RenderManLightTypes = []#['RmanEnvLightShape'] #revise with renderman
-	VrayLightTypes = ['VRayLightIESShape', 'VRayLightMesh', 'VRayLightMeshLightLinking', 'VRayLightMtl', 'VRayLightRectShape', 'VRayLightSphereShape']
+	VrayLightTypes = ['VRayLightIESShape', 'VRayLightMesh', 'VRayLightMeshLightLinking', 'VRayLightMtl', 'VRayLightRectShape', 'VRayLightSphereShape','VRayLightDomeShape']
 	ArnoldLightTypes = ['aiAreaLight','aiSkyDomeLight']
 	
 	#Bug fix Issue #1 and #8 
