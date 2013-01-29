@@ -5,12 +5,12 @@ import os
 
 class LCMT:
 	"""Light Contribution Management Tool
-	Version: 3.6.2
+	Version: 3.6.4
 	Author: Nestor Prado
 	more@nestorprado.com
 	2012"""
 	
-	version = '[LCMT v. 3.6.2]'
+	version = '[LCMT v. 3.6.4]'
 	lightDB = ''
 	path = ''
 	fullPath = ''
@@ -179,6 +179,7 @@ class LCMT:
 				lightTrans = cmds.listRelatives(test, p=1)   
 				layerElements = geometry + lightGroups[group]
 				layerName = self.extractLightName(lightGroups[group][-1])
+				layerName += '_Light'
 				cmds.createRenderLayer(layerElements, name=layerName)
 		else:
 			#if we have a certain number of lights selected create a layer with all of those lights attached
@@ -497,6 +498,7 @@ class LCMT:
 
 		if type == "area":
 			light = cmds.shadingNode ('areaLight', asLight=True)
+			cmds.setAttr('%s.useRayTraceShadows' % light, 1)
 			self.refreshList(lightList)
 			return
 		if type == "areaMR":
@@ -511,6 +513,7 @@ class LCMT:
 			return
 		if type == "spot":
 			light = cmds.shadingNode ('spotLight', asLight=True)
+			cmds.setAttr('%s.useRayTraceShadows' % light, 1)
 			self.refreshList(lightList)
 			return
 		if type == "spotMR":
@@ -524,7 +527,21 @@ class LCMT:
 			
 			self.refreshList(lightList)
 			return
-
+		if type == "vrayRect":
+			light = cmds.shadingNode ('VRayLightRectShape', asLight=True)
+			self.refreshList(lightList)
+			return
+		
+		if type == "vrayDome":
+			light = cmds.shadingNode ('VRayLightDomeShape', asLight=True)
+			self.refreshList(lightList)
+			return
+		
+		if type == "vrayIES":
+			light = cmds.shadingNode ('VRayLightIESShape', asLight=True)
+			self.refreshList(lightList)
+			return
+		
 
 	def displayUI(self):
 
@@ -543,10 +560,18 @@ class LCMT:
 
 		createMenu = cmds.menu( label='Create new lights')
 		cmds.menuItem( label='Area Light',command=lambda *args:self.createLight("area",lightList))
-		cmds.menuItem( label='Area Light MR',command=lambda *args:self.createLight("areaMR",lightList)) 
+		if self.isRenderEngineInstalled('mentalRay'):
+			cmds.menuItem( label='Area Light (MR)',command=lambda *args:self.createLight("areaMR",lightList)) 
 		cmds.menuItem( label='Spot Light',command=lambda *args:self.createLight("spot",lightList)) 
-		cmds.menuItem( label='Spot Light MR',command=lambda *args:self.createLight("spotMR",lightList)) 
+		if self.isRenderEngineInstalled('mentalRay'):
+			cmds.menuItem( label='Spot Light (MR)',command=lambda *args:self.createLight("spotMR",lightList)) 
 
+		if self.isRenderEngineInstalled('vray'):
+			cmds.menuItem( label='Rect Light (VRay)',command=lambda *args:self.createLight("vrayRect",lightList)) 
+		if self.isRenderEngineInstalled('vray'):
+			cmds.menuItem( label='Dome Light (VRay)',command=lambda *args:self.createLight("vrayDome",lightList)) 
+		if self.isRenderEngineInstalled('vray'):
+			cmds.menuItem( label='IES Light (VRay)',command=lambda *args:self.createLight("vrayIES",lightList)) 
 
 
 		cmds.paneLayout( configuration='vertical2' )
@@ -581,7 +606,8 @@ class LCMT:
 		geoList = cmds.iconTextScrollList(allowMultiSelection=True, append=geometry,selectCommand=lambda *args: cmds.select(cmds.iconTextScrollList(geoList, query=True, si=True )) )
 		cmds.text('Create Render Layers from selected geometry and lights')      
 		cmds.button(label='Create Render Layers!', command = lambda *args: self.createLayersFromLights(cmds.iconTextScrollList(geoList, query=True, si=True ),self.getElementsFromLightScrollList(lightList,useGroupLights)))  
-		cmds.button(label='Create Render Elements (VRay Only)', command = lambda *args: self.createRenderElementsFromLights(cmds.iconTextScrollList(geoList, query=True, si=True ),self.getElementsFromLightScrollList(lightList,useGroupLights)))  
+		if self.isRenderEngineInstalled('vray'):
+			cmds.button(label='Create Render Elements (VRay Only)', command = lambda *args: self.createRenderElementsFromLights(cmds.iconTextScrollList(geoList, query=True, si=True ),self.getElementsFromLightScrollList(lightList,useGroupLights)))  
 		cmds.setParent('..')
 
 		cmds.showWindow()
